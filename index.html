@@ -1,0 +1,929 @@
+/**
+ * Tecno Buds Companion App — React Native / Expo
+ * ─────────────────────────────────────────────────
+ * Install dependencies first:
+ *   npx expo install @react-native-community/slider
+ *   npx expo install react-native-svg
+ *   npx expo install expo-linear-gradient
+ *   npx expo install @expo-google-fonts/inter @expo-google-fonts/orbitron expo-font
+ *
+ * Then replace App.js content with this file.
+ */
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  TouchableHighlight,
+  ScrollView,
+  Switch,
+  StyleSheet,
+  Animated,
+  Dimensions,
+  Modal,
+  StatusBar,
+  Platform,
+  SafeAreaView,
+} from "react-native";
+import Slider from "@react-native-community/slider";
+import Svg, {
+  Path,
+  Rect,
+  Circle,
+  Ellipse,
+  Polyline,
+  Line,
+  Defs,
+  LinearGradient,
+  RadialGradient,
+  Stop,
+  Text as SvgText,
+} from "react-native-svg";
+import { LinearGradient as ExpoLinearGradient } from "expo-linear-gradient";
+
+const { width: SCREEN_W } = Dimensions.get("window");
+
+// ── Color tokens ──────────────────────────────────────────────────────────────
+const C = {
+  bg: "#0a0c14",
+  surface: "#111420",
+  card: "#161b2e",
+  accent: "#00d4ff",
+  accentDim: "#0099bb",
+  accentGlow: "rgba(0,212,255,0.18)",
+  accentSoft: "rgba(0,212,255,0.08)",
+  purple: "#7c3aed",
+  purpleGlow: "rgba(124,58,237,0.25)",
+  green: "#22c55e",
+  warn: "#f59e0b",
+  text: "#e8eaf6",
+  textMuted: "#7b82a0",
+  textDim: "#4a5068",
+  border: "rgba(255,255,255,0.07)",
+  borderAccent: "rgba(0,212,255,0.3)",
+  red: "#ef4444",
+};
+
+// ── Shared styles ─────────────────────────────────────────────────────────────
+const S = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
+  scroll: { flex: 1, paddingHorizontal: 20, paddingBottom: 100 },
+  pageHeader: { paddingTop: 56, paddingBottom: 24 },
+  eyebrow: { fontSize: 11, color: C.textMuted, letterSpacing: 2, marginBottom: 4, fontWeight: "600" },
+  pageTitle: { fontSize: 22, fontWeight: "800", color: C.text },
+  card: {
+    backgroundColor: C.card,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 18,
+  },
+  cardGlow: { borderColor: "rgba(0,212,255,0.3)", shadowColor: C.accent, shadowOpacity: 0.25, shadowRadius: 20, elevation: 8 },
+  cardPurple: { borderColor: "rgba(124,58,237,0.35)", shadowColor: C.purple, shadowOpacity: 0.3, shadowRadius: 20, elevation: 8 },
+  sectionTitle: { fontSize: 11, fontWeight: "600", letterSpacing: 2, textTransform: "uppercase", color: C.textMuted, marginBottom: 14 },
+  rowItem: { flexDirection: "row", alignItems: "center", paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border },
+  rowLabel: { fontSize: 14, fontWeight: "500", color: C.text },
+  rowSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+  chip: {
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 50,
+    borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
+    marginRight: 8,
+  },
+  chipText: { fontSize: 12, fontWeight: "500", color: C.textMuted },
+  chipActive: { backgroundColor: "rgba(0,212,255,0.08)", borderColor: "rgba(0,212,255,0.3)" },
+  chipTextActive: { color: C.accent },
+  // Bottom nav
+  bottomNav: {
+    position: "absolute", bottom: 0, left: 0, right: 0, height: 72,
+    backgroundColor: "rgba(17,20,32,0.97)",
+    borderTopWidth: 1, borderTopColor: C.border,
+    flexDirection: "row",
+  },
+  navItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3 },
+  navLabel: { fontSize: 10, letterSpacing: 0.5 },
+  navDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.accent, marginTop: -2 },
+  // Modal
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
+  modalSheet: {
+    backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, borderTopWidth: 1, borderTopColor: C.border,
+  },
+  modalHandle: { width: 36, height: 4, backgroundColor: C.textDim, borderRadius: 2, alignSelf: "center", marginBottom: 24 },
+  // Button
+  btn: { borderRadius: 14, padding: 14, alignItems: "center", justifyContent: "center" },
+  btnAccent: { backgroundColor: C.accentDim },
+  btnDanger: { backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.3)" },
+  btnText: { fontSize: 14, fontWeight: "700", color: C.bg },
+  btnDangerText: { fontSize: 14, fontWeight: "600", color: C.red },
+});
+
+// ── Icon (SVG path) ───────────────────────────────────────────────────────────
+function Icon({ d, size = 24, color = C.textDim, strokeWidth = 1.8, fill = "none" }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d={d} />
+    </Svg>
+  );
+}
+
+function BluetoothIcon({ size = 20, color = C.accent }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" />
+    </Svg>
+  );
+}
+
+function BatteryIcon({ level = 80, size = 28 }) {
+  const h = size * 0.55;
+  const color = level > 50 ? C.accent : level > 20 ? C.warn : C.red;
+  const fillW = (23 * level) / 100;
+  return (
+    <Svg width={size} height={h} viewBox="0 0 32 18">
+      <Rect x="1" y="1" width="26" height="16" rx="3" stroke={color} strokeWidth="1.5" fill="none" />
+      <Rect x="27" y="5" width="3" height="8" rx="1.5" fill={color} />
+      <Rect x="2.5" y="2.5" width={fillW} height="13" rx="2" fill={color} />
+    </Svg>
+  );
+}
+
+// ── Animated toggle (replaces CSS toggle) ─────────────────────────────────────
+function Toggle({ value, onValueChange }) {
+  return (
+    <Switch
+      value={value}
+      onValueChange={onValueChange}
+      trackColor={{ false: C.textDim, true: C.accent }}
+      thumbColor="#ffffff"
+      ios_backgroundColor={C.textDim}
+    />
+  );
+}
+
+// ── Row item ──────────────────────────────────────────────────────────────────
+function RowItem({ label, sublabel, right, icon, onPress, last }) {
+  const Wrapper = onPress ? TouchableOpacity : View;
+  return (
+    <Wrapper onPress={onPress} activeOpacity={0.7}
+      style={[S.rowItem, last && { borderBottomWidth: 0 }]}>
+      {icon && (
+        <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+          {icon}
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text style={S.rowLabel}>{label}</Text>
+        {sublabel ? <Text style={S.rowSub}>{sublabel}</Text> : null}
+      </View>
+      {right}
+    </Wrapper>
+  );
+}
+
+// ── Chip ──────────────────────────────────────────────────────────────────────
+function Chip({ label, active, onPress, activeColor }) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}
+      style={[S.chip, active && S.chipActive, active && activeColor && { borderColor: activeColor, backgroundColor: `${activeColor}14` }]}>
+      <Text style={[S.chipText, active && S.chipTextActive, active && activeColor && { color: activeColor }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ── Animated EQ bar ───────────────────────────────────────────────────────────
+function EqBar({ index, playing }) {
+  const anim = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    if (!playing) { Animated.timing(anim, { toValue: 0.3, duration: 300, useNativeDriver: false }).start(); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 0.9 + Math.random() * 0.1, duration: 300 + index * 80, useNativeDriver: false }),
+        Animated.timing(anim, { toValue: 0.15 + Math.random() * 0.2, duration: 300 + index * 60, useNativeDriver: false }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [playing]);
+  const height = anim.interpolate({ inputRange: [0, 1], outputRange: [4, 24] });
+  return <Animated.View style={{ width: 3, height, backgroundColor: C.accent, borderRadius: 3, alignSelf: "flex-end", opacity: playing ? 1 : 0.3 }} />;
+}
+
+// ── Pulse ring animation ──────────────────────────────────────────────────────
+function PulseRing({ delay = 0, size = 72 }) {
+  const scale = useRef(new Animated.Value(0.9)).current;
+  const opacity = useRef(new Animated.Value(0.7)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.parallel([
+        Animated.timing(scale, { toValue: 1.6, duration: 2000, delay, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 2000, delay, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return (
+    <Animated.View style={{
+      position: "absolute", width: size, height: size, borderRadius: size / 2,
+      borderWidth: 1.5, borderColor: C.accent,
+      transform: [{ scale }], opacity,
+    }} />
+  );
+}
+
+// ── Float animation ───────────────────────────────────────────────────────────
+function FloatView({ children, delay = 0, style }) {
+  const y = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(y, { toValue: -8, duration: 1500, delay, useNativeDriver: true }),
+        Animated.timing(y, { toValue: 0, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return <Animated.View style={[style, { transform: [{ translateY: y }] }]}>{children}</Animated.View>;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCREEN: HOME
+// ═══════════════════════════════════════════════════════════════════════════════
+function HomeScreen({ state, dispatch }) {
+  const { connected, leftBattery, rightBattery, caseBattery, ancMode, playing, volume } = state;
+  const ancModes = ["Off", "ANC", "Transparency", "Wind"];
+  const ancColors = [C.textMuted, C.accent, C.green, C.purple];
+  const ancIcons = ["🔇", "🎧", "👂", "🌬️"];
+  const BUD_SIZE = 72;
+
+  return (
+    <ScrollView style={S.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      {/* Header */}
+      <View style={[S.pageHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
+        <View>
+          <Text style={S.eyebrow}>TECNO BUDS</Text>
+          <Text style={[S.pageTitle, { fontWeight: "800" }]}>{state.deviceName}</Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: connected ? "rgba(0,212,255,0.08)" : C.surface,
+          borderRadius: 50, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: connected ? C.borderAccent : C.border }}>
+          <BluetoothIcon size={13} color={connected ? C.accent : C.textMuted} />
+          <Text style={{ fontSize: 11, color: connected ? C.accent : C.textMuted, fontWeight: "600", marginLeft: 5 }}>
+            {connected ? "Connected" : "Disconnected"}
+          </Text>
+        </View>
+      </View>
+
+      {/* Buds visual card */}
+      <View style={[S.card, S.cardGlow, { overflow: "hidden" }]}>
+        <ExpoLinearGradient colors={["rgba(0,212,255,0.12)", "transparent"]} style={StyleSheet.absoluteFill} />
+
+        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "flex-end", gap: 24, paddingVertical: 20 }}>
+          {/* Left bud */}
+          <FloatView delay={0}>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <View style={{ width: BUD_SIZE, height: BUD_SIZE, alignItems: "center", justifyContent: "center" }}>
+                {connected && <><PulseRing delay={0} size={BUD_SIZE} /><PulseRing delay={700} size={BUD_SIZE} /></>}
+                <Svg width={56} height={72} viewBox="0 0 56 72">
+                  <Defs>
+                    <LinearGradient id="bl" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <Stop offset="0%" stopColor="#1e2a4a" /><Stop offset="100%" stopColor="#0d1525" />
+                    </LinearGradient>
+                  </Defs>
+                  <Ellipse cx="28" cy="34" rx="22" ry="30" fill="url(#bl)" stroke="rgba(0,212,255,0.3)" strokeWidth="1" />
+                  <Ellipse cx="28" cy="56" rx="11" ry="13" fill="#0a0e1a" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+                  <Circle cx="28" cy="23" r="7" fill="rgba(0,212,255,0.08)" stroke="rgba(0,212,255,0.3)" strokeWidth="1" />
+                  <Circle cx="28" cy="23" r="3" fill={C.accent} />
+                  <SvgText x="28" y="63" textAnchor="middle" fill={C.textMuted} fontSize="7" fontWeight="600">L</SvgText>
+                </Svg>
+              </View>
+              <BatteryIcon level={leftBattery} size={26} />
+              <Text style={{ fontSize: 11, fontWeight: "600", color: C.textMuted }}>{leftBattery}%</Text>
+            </View>
+          </FloatView>
+
+          {/* Case */}
+          <View style={{ alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <Svg width={38} height={46} viewBox="0 0 44 52">
+              <Rect x="2" y="8" width="40" height="42" rx="10" fill="#1a2035" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+              <Rect x="2" y="2" width="40" height="12" rx="6" fill="#141927" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+              <Circle cx="22" cy="35" r="6" fill="rgba(0,212,255,0.08)" stroke="rgba(0,212,255,0.3)" strokeWidth="1" />
+              <Circle cx="22" cy="35" r="2" fill={C.accent} opacity="0.8" />
+            </Svg>
+            <BatteryIcon level={caseBattery} size={22} />
+            <Text style={{ fontSize: 10, color: C.textMuted }}>{caseBattery}%</Text>
+          </View>
+
+          {/* Right bud */}
+          <FloatView delay={400}>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <View style={{ width: BUD_SIZE, height: BUD_SIZE, alignItems: "center", justifyContent: "center" }}>
+                {connected && <PulseRing delay={350} size={BUD_SIZE} />}
+                <Svg width={56} height={72} viewBox="0 0 56 72">
+                  <Defs>
+                    <LinearGradient id="br" x1="100%" y1="0%" x2="0%" y2="100%">
+                      <Stop offset="0%" stopColor="#1e2a4a" /><Stop offset="100%" stopColor="#0d1525" />
+                    </LinearGradient>
+                  </Defs>
+                  <Ellipse cx="28" cy="34" rx="22" ry="30" fill="url(#br)" stroke="rgba(0,212,255,0.3)" strokeWidth="1" />
+                  <Ellipse cx="28" cy="56" rx="11" ry="13" fill="#0a0e1a" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+                  <Circle cx="28" cy="23" r="7" fill="rgba(0,212,255,0.08)" stroke="rgba(0,212,255,0.3)" strokeWidth="1" />
+                  <Circle cx="28" cy="23" r="3" fill={C.accent} />
+                  <SvgText x="28" y="63" textAnchor="middle" fill={C.textMuted} fontSize="7" fontWeight="600">R</SvgText>
+                </Svg>
+              </View>
+              <BatteryIcon level={rightBattery} size={26} />
+              <Text style={{ fontSize: 11, fontWeight: "600", color: C.textMuted }}>{rightBattery}%</Text>
+            </View>
+          </FloatView>
+        </View>
+
+        {/* EQ bars */}
+        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "flex-end", gap: 5, height: 28 }}>
+          {[0, 1, 2, 3, 4].map(i => <EqBar key={i} index={i} playing={playing && connected} />)}
+        </View>
+      </View>
+
+      {/* Noise control */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Noise Control</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={{ flexDirection: "row" }}>
+            {ancModes.map((m, i) => (
+              <Chip key={m} label={`${ancIcons[i]} ${m}`} active={ancMode === i}
+                activeColor={ancColors[i]} onPress={() => dispatch({ type: "SET_ANC", value: i })} />
+            ))}
+          </View>
+        </ScrollView>
+        {ancMode === 1 && (
+          <View style={{ marginTop: 16 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, color: C.textMuted }}>ANC Level</Text>
+              <Text style={{ fontSize: 12, color: C.accent, fontWeight: "600" }}>{state.ancLevel}%</Text>
+            </View>
+            <Slider minimumValue={0} maximumValue={100} value={state.ancLevel} step={1}
+              onValueChange={v => dispatch({ type: "SET_ANC_LEVEL", value: v })}
+              minimumTrackTintColor={C.accent} maximumTrackTintColor={C.border} thumbTintColor={C.accent} />
+          </View>
+        )}
+        {ancMode === 2 && (
+          <View style={{ marginTop: 12, padding: 10, borderRadius: 12, backgroundColor: "rgba(34,197,94,0.08)", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
+            <Text style={{ fontSize: 12, color: C.green }}>👂 Transparency mode — hear your surroundings</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Volume */}
+      <View style={S.card}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <Text style={S.sectionTitle}>Volume</Text>
+          <Text style={{ fontSize: 24, fontWeight: "800", color: C.accent }}>{volume}</Text>
+        </View>
+        <Slider minimumValue={0} maximumValue={100} value={volume} step={1}
+          onValueChange={v => dispatch({ type: "SET_VOLUME", value: v })}
+          minimumTrackTintColor={C.accent} maximumTrackTintColor={C.border} thumbTintColor={C.accent} />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+          <Text style={{ fontSize: 14 }}>🔇</Text><Text style={{ fontSize: 14 }}>🔊</Text>
+        </View>
+      </View>
+
+      {/* Now playing */}
+      <View style={[S.card, { flexDirection: "row", alignItems: "center", gap: 14 }]}>
+        <ExpoLinearGradient colors={[C.purple, C.accent]} style={{ width: 48, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontSize: 20 }}>🎵</Text>
+        </ExpoLinearGradient>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: C.text }} numberOfLines={1}>{state.currentTrack}</Text>
+          <Text style={{ fontSize: 12, color: C.textMuted }}>{state.currentArtist}</Text>
+        </View>
+        <TouchableOpacity onPress={() => dispatch({ type: "TOGGLE_PLAY" })} activeOpacity={0.7}
+          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,212,255,0.08)", borderWidth: 1, borderColor: C.borderAccent, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontSize: 16, color: C.accent }}>{playing ? "⏸" : "▶"}</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCREEN: EQUALIZER
+// ═══════════════════════════════════════════════════════════════════════════════
+function EqScreen({ state, dispatch }) {
+  const presets = ["Custom", "Bass Boost", "Balanced", "Treble+", "Podcast", "Gaming", "Classical", "Hip-Hop"];
+  const bands = ["60Hz", "230Hz", "910Hz", "4kHz", "14kHz"];
+  const presetMap = {
+    "Bass Boost": [8, 6, 0, -2, -3], "Balanced": [0, 0, 0, 0, 0],
+    "Treble+": [-3, -2, 2, 6, 8], "Podcast": [-4, 2, 6, 4, 1],
+    "Gaming": [4, 2, 0, 4, 5], "Classical": [3, 1, -1, 2, 4],
+    "Hip-Hop": [7, 5, -1, -2, 2], "Custom": null,
+  };
+
+  function applyPreset(name) {
+    dispatch({ type: "SET_EQ_PRESET", name });
+    if (presetMap[name]) dispatch({ type: "SET_EQ_BANDS", bands: presetMap[name] });
+  }
+
+  // Build SVG curve points
+  const W = SCREEN_W - 76; // card padding
+  const pts = state.eqBands.map((v, i) => ({ x: 20 + i * ((W - 40) / 4), y: 40 - v * 2.5 }));
+  const linePath = `M ${pts.map(p => `${p.x},${p.y}`).join(" L ")}`;
+  const fillPath = `M 20,80 L ${pts.map(p => `${p.x},${p.y}`).join(" L ")} L ${W - 20},80 Z`;
+
+  return (
+    <ScrollView style={S.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <View style={S.pageHeader}>
+        <Text style={S.eyebrow}>AUDIO</Text>
+        <Text style={S.pageTitle}>Equalizer</Text>
+      </View>
+
+      {/* Preset chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 18 }}>
+        <View style={{ flexDirection: "row" }}>
+          {presets.map(p => <Chip key={p} label={p} active={state.eqPreset === p} onPress={() => applyPreset(p)} />)}
+        </View>
+      </ScrollView>
+
+      {/* EQ card */}
+      <View style={[S.card, S.cardGlow]}>
+        {/* Curve */}
+        <Svg width={W} height={80} style={{ marginBottom: 16 }}>
+          <Defs>
+            <LinearGradient id="eqg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={C.accent} stopOpacity="0.4" />
+              <Stop offset="100%" stopColor={C.accent} stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          <Path d={fillPath} fill="url(#eqg)" />
+          <Path d={linePath} fill="none" stroke={C.accent} strokeWidth="2" strokeLinejoin="round" />
+          <Line x1="0" y1="40" x2={W} y2="40" stroke={C.border} strokeWidth="1" strokeDasharray="4,4" />
+          {pts.map((p, i) => <Circle key={i} cx={p.x} cy={p.y} r="4" fill={C.accent} stroke={C.bg} strokeWidth="2" />)}
+        </Svg>
+
+        {/* Sliders */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          {bands.map((band, i) => {
+            const val = state.eqBands[i];
+            const color = val > 0 ? C.accent : val < 0 ? C.purple : C.textMuted;
+            return (
+              <View key={band} style={{ flex: 1, alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color }}>{val > 0 ? "+" : ""}{val}</Text>
+                <View style={{ height: 120, justifyContent: "center" }}>
+                  <Slider style={{ width: 110, transform: [{ rotate: "-90deg" }] }}
+                    minimumValue={-10} maximumValue={10} value={val} step={1}
+                    onValueChange={v => {
+                      const nb = [...state.eqBands]; nb[i] = Math.round(v);
+                      dispatch({ type: "SET_EQ_BANDS", bands: nb });
+                      dispatch({ type: "SET_EQ_PRESET", name: "Custom" });
+                    }}
+                    minimumTrackTintColor={C.accent} maximumTrackTintColor={C.border} thumbTintColor={C.accent} />
+                </View>
+                <Text style={{ fontSize: 10, color: C.textMuted, textAlign: "center" }}>{band}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Toggles */}
+      <View style={S.card}>
+        <RowItem label="Bass Enhancer" sublabel="Boost low frequencies digitally"
+          right={<Toggle value={state.bassEnhancer} onValueChange={v => dispatch({ type: "TOGGLE_BASS_ENHANCER", value: v })} />} />
+        <RowItem label="HearID Sound Profile" sublabel="Personalized tuning for your ears"
+          right={<Toggle value={state.hearId} onValueChange={v => dispatch({ type: "TOGGLE_HEAR_ID", value: v })} />} />
+        <RowItem label="3D Surround Sound" sublabel="Immersive spatial audio" last
+          right={<Toggle value={state.spatial} onValueChange={v => dispatch({ type: "TOGGLE_SPATIAL", value: v })} />} />
+      </View>
+
+      {/* Sound signature */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Sound Signature</Text>
+        {["Harman Target", "Bright", "Warm", "V-Shaped"].map((sig, i, arr) => (
+          <TouchableOpacity key={sig} onPress={() => dispatch({ type: "SET_SIGNATURE", value: sig })} activeOpacity={0.7}
+            style={[S.rowItem, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+            <Text style={{ flex: 1, fontSize: 14, color: state.soundSignature === sig ? C.accent : C.text }}>{sig}</Text>
+            {state.soundSignature === sig && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.accent }} />}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCREEN: CONTROLS
+// ═══════════════════════════════════════════════════════════════════════════════
+function ControlsScreen({ state, dispatch }) {
+  const [editTarget, setEditTarget] = useState(null);
+  const actions = ["Previous Track", "Next Track", "Play/Pause", "Volume Up", "Volume Down", "ANC Toggle", "Transparency", "Voice Assistant", "Gaming Mode", "None"];
+  const controls = [
+    { id: "leftSingle", label: "Left Single Tap" }, { id: "leftDouble", label: "Left Double Tap" },
+    { id: "leftTriple", label: "Left Triple Tap" }, { id: "leftHold", label: "Left Hold" },
+    { id: "rightSingle", label: "Right Single Tap" }, { id: "rightDouble", label: "Right Double Tap" },
+    { id: "rightTriple", label: "Right Triple Tap" }, { id: "rightHold", label: "Right Hold" },
+  ];
+
+  return (
+    <ScrollView style={S.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <View style={S.pageHeader}>
+        <Text style={S.eyebrow}>CUSTOMIZE</Text>
+        <Text style={S.pageTitle}>Controls</Text>
+      </View>
+
+      {/* Touch sensitivity */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Touch Sensitivity</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+          <Text style={{ fontSize: 12, color: C.textMuted }}>Level</Text>
+          <Text style={{ fontSize: 12, color: C.accent, fontWeight: "600" }}>{state.touchSensitivity}</Text>
+        </View>
+        <Slider minimumValue={1} maximumValue={5} value={state.touchSensitivity} step={1}
+          onValueChange={v => dispatch({ type: "SET_TOUCH_SENSITIVITY", value: v })}
+          minimumTrackTintColor={C.accent} maximumTrackTintColor={C.border} thumbTintColor={C.accent} />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+          <Text style={{ fontSize: 11, color: C.textDim }}>Low</Text>
+          <Text style={{ fontSize: 11, color: C.textDim }}>High</Text>
+        </View>
+      </View>
+
+      {/* Gesture mapping */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Gesture Mapping</Text>
+        {controls.map((ctrl, i) => (
+          <TouchableOpacity key={ctrl.id} onPress={() => setEditTarget(ctrl)} activeOpacity={0.7}
+            style={[S.rowItem, i === controls.length - 1 && { borderBottomWidth: 0 }]}>
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: "500", color: C.text }}>{ctrl.label}</Text>
+            <Text style={{ fontSize: 12, color: C.accent, marginRight: 6 }}>{state.controls[ctrl.id]}</Text>
+            <Icon d="M9 18l6-6-6-6" size={16} color={C.textDim} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Quick toggles */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Quick Settings</Text>
+        <RowItem label="In-Ear Detection" sublabel="Auto pause when removed"
+          right={<Toggle value={state.inEarDetect} onValueChange={v => dispatch({ type: "TOGGLE_IN_EAR", value: v })} />} />
+        <RowItem label="Auto Power-Off" sublabel="Turn off after 30 min idle"
+          right={<Toggle value={state.autoPowerOff} onValueChange={v => dispatch({ type: "TOGGLE_AUTO_OFF", value: v })} />} />
+        <RowItem label="Game Mode (48ms)" sublabel="Ultra-low latency"
+          icon={<Text style={{ fontSize: 16 }}>🎮</Text>}
+          right={<Toggle value={state.gameMode} onValueChange={v => dispatch({ type: "TOGGLE_GAME_MODE", value: v })} />} last />
+      </View>
+
+      {/* Voice assistant */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Voice Assistant</Text>
+        {["Google Assistant", "Siri", "Alexa", "Bixby"].map((va, i, arr) => (
+          <TouchableOpacity key={va} onPress={() => dispatch({ type: "SET_VOICE_ASSISTANT", value: va })} activeOpacity={0.7}
+            style={[S.rowItem, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+            <Text style={{ flex: 1, fontSize: 14, color: state.voiceAssistant === va ? C.accent : C.text }}>{va}</Text>
+            {state.voiceAssistant === va && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.accent }} />}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Action picker modal */}
+      <Modal visible={!!editTarget} transparent animationType="slide" onRequestClose={() => setEditTarget(null)}>
+        <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={() => setEditTarget(null)}>
+          <TouchableOpacity activeOpacity={1} style={S.modalSheet}>
+            <View style={S.modalHandle} />
+            <Text style={{ fontWeight: "700", fontSize: 16, color: C.text, marginBottom: 4 }}>{editTarget?.label}</Text>
+            <Text style={{ fontSize: 12, color: C.textMuted, marginBottom: 20 }}>Choose an action</Text>
+            <ScrollView>
+              {actions.map((action, i) => (
+                <TouchableOpacity key={action} onPress={() => {
+                  dispatch({ type: "SET_CONTROL", id: editTarget.id, value: action });
+                  setEditTarget(null);
+                }} activeOpacity={0.7}
+                  style={[S.rowItem, i === actions.length - 1 && { borderBottomWidth: 0 }]}>
+                  <Text style={{ flex: 1, fontSize: 14, color: state.controls[editTarget?.id] === action ? C.accent : C.text }}>{action}</Text>
+                  {state.controls[editTarget?.id] === action && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.accent }} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCREEN: DEVICE
+// ═══════════════════════════════════════════════════════════════════════════════
+function DeviceScreen({ state, dispatch }) {
+  const [updating, setUpdating] = useState(false);
+  const [updated, setUpdated] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+
+  function handleUpdate() {
+    setUpdating(true);
+    setTimeout(() => { setUpdating(false); setUpdated(true); }, 3000);
+  }
+
+  return (
+    <ScrollView style={S.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <View style={S.pageHeader}>
+        <Text style={S.eyebrow}>MANAGE</Text>
+        <Text style={S.pageTitle}>Device</Text>
+      </View>
+
+      {/* Device card */}
+      <View style={[S.card, S.cardGlow]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 18 }}>
+          <ExpoLinearGradient colors={["rgba(0,212,255,0.12)", "rgba(124,58,237,0.15)"]}
+            style={{ width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.borderAccent }}>
+            <Text style={{ fontSize: 26 }}>🎧</Text>
+          </ExpoLinearGradient>
+          <View>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: C.text }}>{state.deviceName}</Text>
+            <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Model: FB7 Pro Max</Text>
+            <Text style={{ fontSize: 12, color: state.connected ? C.green : C.red, marginTop: 2, fontWeight: "500" }}>
+              {state.connected ? "● Connected" : "○ Disconnected"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          {[{ l: "Left", v: state.leftBattery }, { l: "Case", v: state.caseBattery }, { l: "Right", v: state.rightBattery }].map(item => (
+            <View key={item.l} style={{ flex: 1, backgroundColor: C.surface, borderRadius: 12, padding: 12, alignItems: "center", borderWidth: 1, borderColor: C.border }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: C.accent }}>{item.v}%</Text>
+              <Text style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>{item.l}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Firmware */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Firmware</Text>
+        <RowItem label="Current Version" sublabel="FB7Pro-v3.2.1"
+          right={<Text style={{ fontSize: 12, color: C.textMuted }}>Latest</Text>} last />
+        <TouchableOpacity onPress={handleUpdate} disabled={updating} activeOpacity={0.8}
+          style={[S.btn, { marginTop: 16, backgroundColor: updating ? C.surface : C.accent, borderWidth: 1, borderColor: C.borderAccent }]}>
+          {updated
+            ? <Text style={{ fontSize: 14, fontWeight: "600", color: C.green }}>✅ Device is up to date</Text>
+            : <Text style={[S.btnText, { color: updating ? C.textMuted : C.bg }]}>{updating ? "Updating…" : "Check for Updates"}</Text>}
+        </TouchableOpacity>
+      </View>
+
+      {/* Connection */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Connection</Text>
+        <RowItem label="Multipoint Connection" sublabel="Connect to 2 devices"
+          right={<Toggle value={state.multipoint} onValueChange={v => dispatch({ type: "TOGGLE_MULTIPOINT", value: v })} />} />
+        <RowItem label="Auto-Reconnect" sublabel="Connect when in range"
+          right={<Toggle value={state.autoReconnect} onValueChange={v => dispatch({ type: "TOGGLE_AUTO_RECONNECT", value: v })} />} />
+        <RowItem label="Codec" sublabel="Tap to cycle"
+          right={<Text style={{ fontSize: 11, color: C.accent, fontWeight: "700" }}>{state.codec}</Text>}
+          onPress={() => dispatch({ type: "CYCLE_CODEC" })} last />
+      </View>
+
+      {/* Sleep timer */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Sleep Timer</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={{ flexDirection: "row" }}>
+            {["Off", "15m", "30m", "45m", "60m", "90m"].map(t => (
+              <Chip key={t} label={t} active={state.sleepTimer === t} onPress={() => dispatch({ type: "SET_SLEEP_TIMER", value: t })} />
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Reset */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Factory Reset</Text>
+        <Text style={{ fontSize: 13, color: C.textMuted, lineHeight: 20, marginBottom: 16 }}>
+          This will erase all custom settings and unpair from all connections.
+        </Text>
+        <TouchableOpacity onPress={() => setShowReset(true)} activeOpacity={0.7} style={[S.btn, S.btnDanger]}>
+          <Text style={S.btnDangerText}>Reset to Factory Default</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Reset modal */}
+      <Modal visible={showReset} transparent animationType="slide" onRequestClose={() => setShowReset(false)}>
+        <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={() => setShowReset(false)}>
+          <TouchableOpacity activeOpacity={1} style={S.modalSheet}>
+            <View style={S.modalHandle} />
+            <Text style={{ fontSize: 20, fontWeight: "700", color: C.text, marginBottom: 8 }}>Reset Device?</Text>
+            <Text style={{ fontSize: 14, color: C.textMuted, lineHeight: 22, marginBottom: 28 }}>
+              This will erase all your custom EQ profiles, control mappings, and connection history.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity onPress={() => setShowReset(false)} activeOpacity={0.7}
+                style={[S.btn, { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border }]}>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: C.text }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { dispatch({ type: "FACTORY_RESET" }); setShowReset(false); }} activeOpacity={0.7}
+                style={[S.btn, S.btnDanger, { flex: 1 }]}>
+                <Text style={S.btnDangerText}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCREEN: MORE
+// ═══════════════════════════════════════════════════════════════════════════════
+function MoreScreen({ state, dispatch }) {
+  return (
+    <ScrollView style={S.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <View style={S.pageHeader}>
+        <Text style={S.eyebrow}>MORE</Text>
+        <Text style={S.pageTitle}>Settings</Text>
+      </View>
+
+      {/* Find My Buds */}
+      <View style={[S.card, S.cardPurple]}>
+        <Text style={S.sectionTitle}>Find My Buds</Text>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          {["Left Bud", "Right Bud", "Both"].map(target => (
+            <TouchableOpacity key={target} onPress={() => dispatch({ type: "FIND_BUD", target })} activeOpacity={0.7}
+              style={{ flex: 1, padding: 12, borderRadius: 14, alignItems: "center",
+                backgroundColor: state.findingBud === target ? "rgba(124,58,237,0.15)" : C.surface,
+                borderWidth: 1, borderColor: state.findingBud === target ? C.purple : C.border }}>
+              <Text style={{ fontSize: 18 }}>{state.findingBud === target ? "🔊" : "📍"}</Text>
+              <Text style={{ fontSize: 11, color: state.findingBud === target ? "#a78bfa" : C.textMuted, marginTop: 4, fontWeight: "600" }}>{target}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {state.findingBud && (
+          <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: "rgba(124,58,237,0.1)", borderWidth: 1, borderColor: "rgba(124,58,237,0.25)", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ fontSize: 13, color: "#a78bfa" }}>Playing alert on {state.findingBud}</Text>
+            <TouchableOpacity onPress={() => dispatch({ type: "STOP_FIND" })}>
+              <Text style={{ color: "#a78bfa", fontSize: 18 }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Hearing health */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Hearing Health</Text>
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1, backgroundColor: C.surface, borderRadius: 14, padding: 14, alignItems: "center" }}>
+            <Text style={{ fontSize: 28, fontWeight: "800", color: state.hearingScore > 80 ? C.green : C.warn }}>{state.hearingScore}</Text>
+            <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>Weekly Score</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: C.surface, borderRadius: 14, padding: 14, alignItems: "center" }}>
+            <Text style={{ fontSize: 28, fontWeight: "800", color: C.accent }}>{state.listeningHours}h</Text>
+            <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>This Week</Text>
+          </View>
+        </View>
+        <RowItem label="Volume Limit" sublabel="85 dB max recommended"
+          right={<Toggle value={state.volumeLimit} onValueChange={v => dispatch({ type: "TOGGLE_VOLUME_LIMIT", value: v })} />} />
+        <RowItem label="Weekly Report" sublabel="Hearing usage summary" last
+          right={<Toggle value={state.hearingReport} onValueChange={v => dispatch({ type: "TOGGLE_HEARING_REPORT", value: v })} />} />
+      </View>
+
+      {/* Accessibility */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>Accessibility</Text>
+        <RowItem label="Reduce Motion" sublabel="Disable animations"
+          right={<Toggle value={state.reduceMotion} onValueChange={v => dispatch({ type: "TOGGLE_REDUCE_MOTION", value: v })} />} />
+        <RowItem label="Large Text" sublabel="Increase font size" last
+          right={<Toggle value={state.largeText} onValueChange={v => dispatch({ type: "TOGGLE_LARGE_TEXT", value: v })} />} />
+      </View>
+
+      {/* About */}
+      <View style={S.card}>
+        <Text style={S.sectionTitle}>About</Text>
+        {[["App Version", "4.2.1"], ["Device Model", "Tecno Buds FB7 Pro Max"], ["Firmware", "FB7Pro-v3.2.1"], ["Build", "2025.06.19"]].map(([k, v], i, arr) => (
+          <View key={k} style={[S.rowItem, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+            <Text style={{ flex: 1, fontSize: 13, color: C.textMuted }}>{k}</Text>
+            <Text style={{ fontSize: 13, color: C.text, fontWeight: "500" }}>{v}</Text>
+          </View>
+        ))}
+        <View style={{ marginTop: 16, alignItems: "center" }}>
+          <Text style={{ fontSize: 14, fontWeight: "800", color: C.accent, letterSpacing: 2 }}>TECNO BUDS</Text>
+          <Text style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>© 2025 Tecno Mobile Limited</Text>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+const initialState = {
+  tab: "home",
+  connected: true,
+  deviceName: "Tecno Buds FB7 Pro",
+  leftBattery: 82, rightBattery: 78, caseBattery: 91,
+  ancMode: 1, ancLevel: 70,
+  playing: true, volume: 65,
+  currentTrack: "Midnight Vibes", currentArtist: "Neon Collective",
+  eqPreset: "Balanced", eqBands: [0, 0, 0, 0, 0],
+  bassEnhancer: false, hearId: false, spatial: true,
+  soundSignature: "Harman Target",
+  touchSensitivity: 3,
+  controls: {
+    leftSingle: "Play/Pause", leftDouble: "Previous Track",
+    leftTriple: "ANC Toggle", leftHold: "Voice Assistant",
+    rightSingle: "Play/Pause", rightDouble: "Next Track",
+    rightTriple: "Transparency", rightHold: "Volume Up",
+  },
+  inEarDetect: true, autoPowerOff: true, gameMode: false,
+  voiceAssistant: "Google Assistant",
+  multipoint: false, autoReconnect: true,
+  codec: "LDAC", sleepTimer: "Off",
+  findingBud: null,
+  hearingScore: 92, listeningHours: 14,
+  volumeLimit: true, hearingReport: true,
+  reduceMotion: false, largeText: false,
+};
+
+const codecs = ["SBC", "AAC", "aptX", "aptX HD", "LDAC"];
+
+function reducer(state, action) {
+  switch (action.type) {
+    case "SET_TAB": return { ...state, tab: action.value };
+    case "SET_ANC": return { ...state, ancMode: action.value };
+    case "SET_ANC_LEVEL": return { ...state, ancLevel: action.value };
+    case "SET_VOLUME": return { ...state, volume: action.value };
+    case "TOGGLE_PLAY": return { ...state, playing: !state.playing };
+    case "SET_EQ_PRESET": return { ...state, eqPreset: action.name };
+    case "SET_EQ_BANDS": return { ...state, eqBands: action.bands };
+    case "TOGGLE_BASS_ENHANCER": return { ...state, bassEnhancer: action.value };
+    case "TOGGLE_HEAR_ID": return { ...state, hearId: action.value };
+    case "TOGGLE_SPATIAL": return { ...state, spatial: action.value };
+    case "SET_SIGNATURE": return { ...state, soundSignature: action.value };
+    case "SET_TOUCH_SENSITIVITY": return { ...state, touchSensitivity: action.value };
+    case "SET_CONTROL": return { ...state, controls: { ...state.controls, [action.id]: action.value } };
+    case "TOGGLE_IN_EAR": return { ...state, inEarDetect: action.value };
+    case "TOGGLE_AUTO_OFF": return { ...state, autoPowerOff: action.value };
+    case "TOGGLE_GAME_MODE": return { ...state, gameMode: action.value };
+    case "SET_VOICE_ASSISTANT": return { ...state, voiceAssistant: action.value };
+    case "TOGGLE_MULTIPOINT": return { ...state, multipoint: action.value };
+    case "TOGGLE_AUTO_RECONNECT": return { ...state, autoReconnect: action.value };
+    case "CYCLE_CODEC": { const i = codecs.indexOf(state.codec); return { ...state, codec: codecs[(i + 1) % codecs.length] }; }
+    case "SET_SLEEP_TIMER": return { ...state, sleepTimer: action.value };
+    case "FIND_BUD": return { ...state, findingBud: action.target };
+    case "STOP_FIND": return { ...state, findingBud: null };
+    case "TOGGLE_VOLUME_LIMIT": return { ...state, volumeLimit: action.value };
+    case "TOGGLE_HEARING_REPORT": return { ...state, hearingReport: action.value };
+    case "TOGGLE_REDUCE_MOTION": return { ...state, reduceMotion: action.value };
+    case "TOGGLE_LARGE_TEXT": return { ...state, largeText: action.value };
+    case "FACTORY_RESET": return { ...initialState, connected: false, playing: false };
+    default: return state;
+  }
+}
+
+// ── Nav config ────────────────────────────────────────────────────────────────
+const NAV = [
+  { id: "home",     label: "Home",     icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
+  { id: "eq",       label: "Sound",    icon: "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" },
+  { id: "controls", label: "Controls", icon: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" },
+  { id: "device",   label: "Device",   icon: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" },
+  { id: "more",     label: "More",     icon: "M4 6h16M4 12h16M4 18h16" },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROOT APP
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function App() {
+  const [appState, setAppState] = useState(initialState);
+  const dispatch = useCallback(action => setAppState(prev => reducer(prev, action)), []);
+
+  const screens = {
+    home:     <HomeScreen     state={appState} dispatch={dispatch} />,
+    eq:       <EqScreen       state={appState} dispatch={dispatch} />,
+    controls: <ControlsScreen state={appState} dispatch={dispatch} />,
+    device:   <DeviceScreen   state={appState} dispatch={dispatch} />,
+    more:     <MoreScreen     state={appState} dispatch={dispatch} />,
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      {/* Screen */}
+      <View style={{ flex: 1 }}>
+        {screens[appState.tab]}
+      </View>
+
+      {/* Bottom nav */}
+      <View style={S.bottomNav}>
+        {NAV.map(item => {
+          const active = appState.tab === item.id;
+          return (
+            <TouchableOpacity key={item.id} style={S.navItem} onPress={() => dispatch({ type: "SET_TAB", value: item.id })} activeOpacity={0.7}>
+              <Icon d={item.icon} size={22} color={active ? C.accent : C.textDim} strokeWidth={active ? 2.2 : 1.6} />
+              <Text style={[S.navLabel, { color: active ? C.accent : C.textDim, fontWeight: active ? "600" : "400" }]}>{item.label}</Text>
+              {active && <View style={S.navDot} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </SafeAreaView>
+  );
+}
